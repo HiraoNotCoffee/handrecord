@@ -306,7 +306,6 @@ export default function ActionInput({
 
         // 最後のアクションがCALL/FOLDの場合
         const lastActorPos = lastAction.position;
-        const lastActorIndex = preflopOrder.indexOf(lastActorPos);
 
         // レイザー以降のポジションを取得（レイザー自身を除く）
         const positionsAfterRaiser: Position[] = [];
