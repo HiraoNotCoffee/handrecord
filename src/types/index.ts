@@ -48,6 +48,7 @@ export interface Action {
 export interface TableAssignment {
   playerId?: string;    // 未割当の場合は undefined
   isHero?: boolean;     // Heroの場合 true
+  stackBb?: number;     // スタックサイズ（BB単位）
 }
 
 // ボード

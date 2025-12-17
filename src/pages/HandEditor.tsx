@@ -273,6 +273,14 @@ export default function HandEditor() {
     setHand({ ...hand, tableAssignments: newAssignments });
   };
 
+  // スタック変更
+  const handleStackChange = (pos: Position, stackBb: number | undefined) => {
+    if (!hand) return;
+    const newAssignments = { ...hand.tableAssignments };
+    newAssignments[pos] = { ...newAssignments[pos], stackBb };
+    setHand({ ...hand, tableAssignments: newAssignments });
+  };
+
   // アクション追加
   const handleAddAction = (action: Action) => {
     if (!hand) return;
@@ -443,6 +451,8 @@ export default function HandEditor() {
                   onSelect={(playerId) => handlePlayerAssign(pos, playerId)}
                   isHero={isHero}
                   onSetHero={() => handleSetHero(pos)}
+                  stackBb={assignment.stackBb}
+                  onStackChange={(stackBb) => handleStackChange(pos, stackBb)}
                 />
               );
             })}
@@ -515,6 +525,7 @@ export default function HandEditor() {
                   setCurrentStreet(streets[currentIndex + 1]);
                 }
               }}
+              tableAssignments={hand.tableAssignments}
             />
           </section>
 

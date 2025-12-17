@@ -9,6 +9,8 @@ interface PlayerSelectorProps {
   onSelect: (playerId: string | undefined) => void;
   isHero: boolean;
   onSetHero: () => void;
+  stackBb?: number;
+  onStackChange: (stackBb: number | undefined) => void;
 }
 
 export default function PlayerSelector({
@@ -17,6 +19,8 @@ export default function PlayerSelector({
   onSelect,
   isHero,
   onSetHero,
+  stackBb,
+  onStackChange,
 }: PlayerSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -104,7 +108,7 @@ export default function PlayerSelector({
         </button>
 
         {isHero ? (
-          <span className="text-yellow-400 font-medium text-sm">Hero</span>
+          <span className="text-yellow-400 font-medium text-sm flex-1">Hero</span>
         ) : (
           <button
             onClick={() => setIsOpen(true)}
@@ -125,10 +129,25 @@ export default function PlayerSelector({
           </button>
         )}
 
+        {/* スタック入力 */}
+        <div className="flex items-center gap-1">
+          <input
+            type="number"
+            value={stackBb ?? ''}
+            onChange={(e) => {
+              const val = e.target.value;
+              onStackChange(val ? parseFloat(val) : undefined);
+            }}
+            placeholder="100"
+            className="w-16 px-2 py-1.5 bg-gray-700 rounded text-center text-sm"
+          />
+          <span className="text-gray-500 text-xs">BB</span>
+        </div>
+
         {selectedPlayer && !isHero && (
           <button
             onClick={handleClear}
-            className="p-2 text-gray-500 hover:text-red-400"
+            className="p-1 text-gray-500 hover:text-red-400"
           >
             ×
           </button>

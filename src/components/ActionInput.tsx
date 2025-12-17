@@ -6,6 +6,7 @@ import {
   Street,
   Position,
   BlindLevel,
+  TableAssignment,
   PREFLOP_SIZE_PRESETS,
   POSTFLOP_SIZE_PRESETS,
   PREFLOP_ACTION_ORDER,
@@ -20,6 +21,7 @@ interface ActionInputProps {
   onRemoveAction: (id: string) => void;
   currentStreet: Street;
   onNextStreet?: () => void;
+  tableAssignments: Record<string, TableAssignment>;
 }
 
 // ブラインドからBB額を取得
@@ -58,6 +60,7 @@ export default function ActionInput({
   onRemoveAction,
   currentStreet,
   onNextStreet,
+  tableAssignments,
 }: ActionInputProps) {
   const [selectedPosition, setSelectedPosition] = useState<Position | null>(null);
   const [selectedType, setSelectedType] = useState<ActionType | null>(null);
@@ -215,6 +218,46 @@ export default function ActionInput({
     return pot;
   }, [actions, currentStreet, tableSize, bbSize, sbSize]);
 
+  // 各ポジションの残りスタック（現在のストリートまで消費した分を引く）
+  const getRemainingStack = useMemo(() => {
+    return (pos: Position): number | undefined => {
+      const assignment = tableAssignments[pos];
+      if (!assignment?.stackBb) return undefined;
+
+      let spent = 0;
+      const hasSB = tableSize >= 3;
+
+      // ブラインド消費
+      if (pos === 'SB' && hasSB) {
+        spent += sbSize / bbSize;
+      } else if (pos === 'BB') {
+        spent += 1;
+      }
+
+      // 全アクションの消費を計算
+      actions.forEach((a) => {
+        if (a.position === pos && a.sizeBb && a.sizeBb > 0) {
+          spent = a.sizeBb; // レイズはトータル額なので上書き
+        } else if (a.position === pos && a.type === 'CALL') {
+          // コール額は最後のレイズ額
+          const priorActions = actions.filter((pa) => pa.order < a.order && pa.street === a.street);
+          const lastRaise = priorActions.filter((pa) => pa.type === 'RAISE').pop();
+          if (lastRaise?.sizeBb && lastRaise.sizeBb > 0) {
+            spent = lastRaise.sizeBb;
+          }
+        }
+      });
+
+      return Math.max(0, assignment.stackBb - spent);
+    };
+  }, [tableAssignments, actions, tableSize, sbSize, bbSize]);
+
+  // 選択中ポジションのオールインサイズ
+  const allInSize = useMemo(() => {
+    if (!selectedPosition) return undefined;
+    return getRemainingStack(selectedPosition);
+  }, [selectedPosition, getRemainingStack]);
+
   // 現在のストリートでのRAISE回数
   const currentStreetRaiseCount = useMemo(() => {
     return actions.filter(
@@ -368,7 +411,7 @@ export default function ActionInput({
         street: currentStreet,
         position: selectedPosition,
         type: 'RAISE',
-        sizeBb: -1,
+        sizeBb: allInSize !== undefined ? allInSize : -1,
       };
       onAddAction(action);
       resetSelection();
@@ -669,7 +712,7 @@ export default function ActionInput({
               onClick={() => handleTypeSelect('ALLIN')}
               className="action-btn action-btn-success"
             >
-              All-in
+              All-in{allInSize !== undefined ? ` (${allInSize}bb)` : ''}
             </button>
           </div>
         </div>
