@@ -4,19 +4,11 @@ import { Card, Rank, Suit, RANKS, SUITS, SUIT_SYMBOLS } from '../types';
 interface CardInputProps {
   usedCards: Card[];
   onCardSelect: (card: Card) => void;
-  onUndo: () => void;
-  onRedo: () => void;
-  canUndo: boolean;
-  canRedo: boolean;
 }
 
 export default function CardInput({
   usedCards,
   onCardSelect,
-  onUndo,
-  onRedo,
-  canUndo,
-  canRedo,
 }: CardInputProps) {
   const [selectedRank, setSelectedRank] = useState<Rank | null>(null);
 
@@ -49,37 +41,17 @@ export default function CardInput({
 
   return (
     <div className="bg-gray-800 p-3 rounded-xl space-y-3">
-      {/* Undo/Redo */}
-      <div className="flex justify-between items-center">
-        <div className="flex gap-2">
-          <button
-            onClick={onUndo}
-            disabled={!canUndo}
-            className="p-2 rounded-lg bg-gray-700 text-gray-300 disabled:opacity-30 disabled:cursor-not-allowed btn-tap"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-            </svg>
-          </button>
-          <button
-            onClick={onRedo}
-            disabled={!canRedo}
-            className="p-2 rounded-lg bg-gray-700 text-gray-300 disabled:opacity-30 disabled:cursor-not-allowed btn-tap"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" />
-            </svg>
-          </button>
-        </div>
-        {selectedRank && (
+      {/* キャンセルボタン */}
+      {selectedRank && (
+        <div className="flex justify-end">
           <button
             onClick={handleCancelRank}
             className="text-sm text-gray-400 hover:text-white"
           >
             キャンセル
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* 選択中ランク表示 */}
       {selectedRank && (

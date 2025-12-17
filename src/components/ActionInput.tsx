@@ -611,55 +611,70 @@ export default function ActionInput({
         </div>
       )}
 
-      {/* 数値入力パッド */}
+      {/* 数値入力モーダル */}
       {showNumpad && (
-        <div className="animate-fade-in">
-          <div className="text-sm text-gray-400 mb-2">
-            <span className="text-yellow-400">{selectedPosition}</span>{' '}
-            <span className="text-blue-400">{getRaiseLabel(currentStreetRaiseCount)}</span>{' '}
-            BB数を入力
-            <button
-              onClick={() => {
-                if (sizePresets.length > 0) {
-                  setShowNumpad(false);
-                } else {
-                  setSelectedType(null);
-                  setShowNumpad(false);
-                }
-              }}
-              className="ml-2 text-gray-500 hover:text-white text-xs"
-            >
-              (戻る)
-            </button>
-          </div>
-          <div className="bg-gray-700 rounded-lg p-3">
-            <div className="bg-gray-900 rounded px-4 py-3 mb-3 text-right text-2xl font-mono">
-              {customSize || '0'} <span className="text-gray-500 text-lg">BB</span>
+        <>
+          {/* モーダル背景（クリックで閉じる） */}
+          <div
+            className="fixed inset-0 bg-black/50 z-40"
+            onClick={() => {
+              if (sizePresets.length > 0) {
+                setShowNumpad(false);
+              } else {
+                setSelectedType(null);
+                setShowNumpad(false);
+              }
+            }}
+          />
+          {/* モーダル本体 */}
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-gray-800 rounded-t-2xl p-4 animate-fade-in">
+            <div className="text-sm text-gray-400 mb-2">
+              <span className="text-yellow-400">{selectedPosition}</span>{' '}
+              <span className="text-blue-400">{getRaiseLabel(currentStreetRaiseCount)}</span>{' '}
+              BB数を入力
+              <button
+                onClick={() => {
+                  if (sizePresets.length > 0) {
+                    setShowNumpad(false);
+                  } else {
+                    setSelectedType(null);
+                    setShowNumpad(false);
+                  }
+                }}
+                className="ml-2 text-gray-500 hover:text-white text-xs"
+              >
+                (戻る)
+              </button>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              {['7', '8', '9', '4', '5', '6', '1', '2', '3', '.', '0', '←'].map(
-                (key) => (
-                  <button
-                    key={key}
-                    onClick={() =>
-                      key === '←' ? handleNumpadDelete() : handleNumpadInput(key)
-                    }
-                    className="py-3 text-xl font-bold bg-gray-600 rounded-lg hover:bg-gray-500 btn-tap"
-                  >
-                    {key}
-                  </button>
-                )
-              )}
+            <div className="bg-gray-700 rounded-lg p-3">
+              <div className="bg-gray-900 rounded px-4 py-3 mb-3 text-right text-2xl font-mono">
+                {customSize || '0'} <span className="text-gray-500 text-lg">BB</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {['7', '8', '9', '4', '5', '6', '1', '2', '3', '.', '0', '←'].map(
+                  (key) => (
+                    <button
+                      key={key}
+                      onClick={() =>
+                        key === '←' ? handleNumpadDelete() : handleNumpadInput(key)
+                      }
+                      className="py-3 text-xl font-bold bg-gray-600 rounded-lg hover:bg-gray-500 btn-tap"
+                    >
+                      {key}
+                    </button>
+                  )
+                )}
+              </div>
+              <button
+                onClick={handleNumpadConfirm}
+                disabled={!customSize || parseFloat(customSize) <= 0}
+                className="w-full mt-3 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed btn-tap"
+              >
+                確定
+              </button>
             </div>
-            <button
-              onClick={handleNumpadConfirm}
-              disabled={!customSize || parseFloat(customSize) <= 0}
-              className="w-full mt-3 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed btn-tap"
-            >
-              確定
-            </button>
           </div>
-        </div>
+        </>
       )}
 
       {/* 全員fold/ヘッズアップ終了の場合 */}

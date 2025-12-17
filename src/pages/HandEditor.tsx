@@ -31,14 +31,10 @@ export default function HandEditor() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  // Undo/Redo対応のハンド状態
+  // ハンド状態
   const {
     state: hand,
     setState: setHand,
-    undo,
-    redo,
-    canUndo,
-    canRedo,
   } = useUndoRedo<Hand | null>(null);
 
   const [inputMode, setInputMode] = useState<InputMode>('none');
@@ -629,10 +625,6 @@ export default function HandEditor() {
           <CardInput
             usedCards={getUsedCards()}
             onCardSelect={handleCardSelect}
-            onUndo={undo}
-            onRedo={redo}
-            canUndo={canUndo}
-            canRedo={canRedo}
           />
         </div>
       )}
