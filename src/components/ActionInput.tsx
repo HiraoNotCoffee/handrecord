@@ -285,26 +285,61 @@ export default function ActionInput({
         );
         const lastRaiseOrder = lastRaise.order;
         const lastRaiserPos = lastRaise.position;
+        const lastRaiserIndex = preflopOrder.indexOf(lastRaiserPos);
 
-        // 最後のレイザー以外のアクティブプレイヤー
-        const otherActivePlayers = availablePositions.filter((p) => p !== lastRaiserPos);
-
-        // 最後のレイズ以降に全員がアクションしたか確認
-        const actionsAfterLastRaise = currentStreetActions.filter((a) => a.order > lastRaiseOrder);
-        const playersActedAfterRaise = actionsAfterLastRaise.map((a) => a.position);
-
-        // 他の全員がcall/fold/all-inした場合完了
-        const allOthersActed = otherActivePlayers.every((p) =>
-          playersActedAfterRaise.includes(p) || explicitlyFoldedPositions.includes(p)
-        );
-
-        // 最後のアクションがレイズでない（＝コールで終わっている）場合に完了
+        // 最後のアクションを取得
         const lastAction = currentStreetActions.reduce((latest, current) =>
           current.order > latest.order ? current : latest
         );
-        const lastActionIsNotRaise = lastAction.type !== 'RAISE' || lastAction.sizeBb === -1;
 
-        return allOthersActed && lastActionIsNotRaise;
+        // 最後のアクションがレイズなら未完了（他のプレイヤーが反応待ち）
+        if (lastAction.type === 'RAISE' && lastAction.sizeBb !== -1) {
+          // ただし、全員がfoldしてレイザーだけ残った場合は完了
+          const remainingPlayers = preflopOrder.filter(
+            (p) => !allFoldedPositions.includes(p) && !currentStreetActions.some(a => a.position === p && a.type === 'FOLD')
+          );
+          if (remainingPlayers.length === 1 && remainingPlayers[0] === lastRaiserPos) {
+            return true;
+          }
+          return false;
+        }
+
+        // 最後のアクションがCALL/FOLDの場合
+        const lastActorPos = lastAction.position;
+        const lastActorIndex = preflopOrder.indexOf(lastActorPos);
+
+        // レイザー以降のポジションを取得（レイザー自身を除く）
+        const positionsAfterRaiser: Position[] = [];
+        for (let i = lastRaiserIndex + 1; i < preflopOrder.length; i++) {
+          positionsAfterRaiser.push(preflopOrder[i]);
+        }
+        // レイザーより前のポジション（一周して戻ってくる分、ただしプリフロはSB/BBまで）
+        for (let i = 0; i < lastRaiserIndex; i++) {
+          // 暗黙的foldされていないポジションのみ
+          if (!implicitlyFoldedPositions.includes(preflopOrder[i])) {
+            positionsAfterRaiser.push(preflopOrder[i]);
+          }
+        }
+
+        // 最後のアクターがレイザー以降の最後のポジションかどうか
+        // または全員がfold/callしたかどうか
+        const actionsAfterLastRaise = currentStreetActions.filter((a) => a.order > lastRaiseOrder);
+        const positionsActedAfterRaise = new Set(actionsAfterLastRaise.map((a) => a.position));
+
+        // アクションが必要なポジション（fold済みでない、かつレイザーでない）
+        const positionsNeedingAction = positionsAfterRaiser.filter(
+          (p) => !allFoldedPositions.includes(p) && !explicitlyFoldedPositions.includes(p)
+        );
+
+        // 最後にアクションしたのがBBで、CALLまたはFOLDなら完了
+        // （BBが最後にアクションするポジションだから）
+        if (lastActorPos === 'BB' && (lastAction.type === 'CALL' || lastAction.type === 'FOLD')) {
+          return true;
+        }
+
+        // それ以外の場合、全員がアクションしたかチェック
+        const allNeededActed = positionsNeedingAction.every((p) => positionsActedAfterRaise.has(p));
+        return allNeededActed && lastAction.type !== 'RAISE';
       }
     } else {
       // ポストフロップ
@@ -341,7 +376,7 @@ export default function ActionInput({
     }
 
     return false;
-  }, [currentStreetActions, availablePositions, explicitlyFoldedPositions, isPreflop]);
+  }, [currentStreetActions, availablePositions, explicitlyFoldedPositions, isPreflop, preflopOrder, allFoldedPositions, implicitlyFoldedPositions]);
 
   // 次のストリート名
   const nextStreetName = useMemo(() => {
