@@ -19,6 +19,7 @@ interface ActionInputProps {
   onAddAction: (action: Action) => void;
   onRemoveAction: (id: string) => void;
   currentStreet: Street;
+  onNextStreet?: () => void;
 }
 
 // ブラインドからBB額を取得
@@ -56,6 +57,7 @@ export default function ActionInput({
   onAddAction,
   onRemoveAction,
   currentStreet,
+  onNextStreet,
 }: ActionInputProps) {
   const [selectedPosition, setSelectedPosition] = useState<Position | null>(null);
   const [selectedType, setSelectedType] = useState<ActionType | null>(null);
@@ -219,6 +221,95 @@ export default function ActionInput({
       (a) => a.street === currentStreet && a.type === 'RAISE'
     ).length;
   }, [actions, currentStreet]);
+
+  // 現在のストリートのアクション
+  const currentStreetActions = useMemo(() => {
+    return actions.filter((a) => a.street === currentStreet);
+  }, [actions, currentStreet]);
+
+  // ストリートが完了したかどうかを判定
+  const isStreetComplete = useMemo(() => {
+    if (currentStreetActions.length === 0) return false;
+
+    // 現在のストリートでのレイズ/ベット
+    const streetRaises = currentStreetActions.filter((a) => a.type === 'RAISE');
+
+    if (isPreflop) {
+      // プリフロップ: レイズがある場合
+      if (streetRaises.length > 0) {
+        const lastRaise = streetRaises.reduce((latest, current) =>
+          current.order > latest.order ? current : latest
+        );
+        const lastRaiseOrder = lastRaise.order;
+        const lastRaiserPos = lastRaise.position;
+
+        // 最後のレイザー以外のアクティブプレイヤー
+        const otherActivePlayers = availablePositions.filter((p) => p !== lastRaiserPos);
+
+        // 最後のレイズ以降に全員がアクションしたか確認
+        const actionsAfterLastRaise = currentStreetActions.filter((a) => a.order > lastRaiseOrder);
+        const playersActedAfterRaise = actionsAfterLastRaise.map((a) => a.position);
+
+        // 他の全員がcall/fold/all-inした場合完了
+        const allOthersActed = otherActivePlayers.every((p) =>
+          playersActedAfterRaise.includes(p) || explicitlyFoldedPositions.includes(p)
+        );
+
+        // 最後のアクションがレイズでない（＝コールで終わっている）場合に完了
+        const lastAction = currentStreetActions.reduce((latest, current) =>
+          current.order > latest.order ? current : latest
+        );
+        const lastActionIsNotRaise = lastAction.type !== 'RAISE' || lastAction.sizeBb === -1;
+
+        return allOthersActed && lastActionIsNotRaise;
+      }
+    } else {
+      // ポストフロップ
+      if (streetRaises.length > 0) {
+        // ベット/レイズがある場合
+        const lastRaise = streetRaises.reduce((latest, current) =>
+          current.order > latest.order ? current : latest
+        );
+        const lastRaiserPos = lastRaise.position;
+        const lastRaiseOrder = lastRaise.order;
+
+        // 最後のレイザー以外のアクティブプレイヤー
+        const otherActivePlayers = availablePositions.filter((p) => p !== lastRaiserPos);
+
+        // 最後のレイズ以降に全員がアクションしたか確認
+        const actionsAfterLastRaise = currentStreetActions.filter((a) => a.order > lastRaiseOrder);
+        const playersActedAfterRaise = actionsAfterLastRaise.map((a) => a.position);
+
+        const allOthersActed = otherActivePlayers.every((p) =>
+          playersActedAfterRaise.includes(p) || explicitlyFoldedPositions.includes(p)
+        );
+
+        const lastAction = currentStreetActions.reduce((latest, current) =>
+          current.order > latest.order ? current : latest
+        );
+        const lastActionIsNotRaise = lastAction.type !== 'RAISE' || lastAction.sizeBb === -1;
+
+        return allOthersActed && lastActionIsNotRaise;
+      } else {
+        // チェック回りの場合: 全員がチェックしたら完了
+        const checkCount = currentStreetActions.filter((a) => a.type === 'CHECK').length;
+        return checkCount >= availablePositions.length;
+      }
+    }
+
+    return false;
+  }, [currentStreetActions, availablePositions, explicitlyFoldedPositions, isPreflop]);
+
+  // 次のストリート名
+  const nextStreetName = useMemo(() => {
+    const streets: Street[] = ['preflop', 'flop', 'turn', 'river'];
+    const currentIndex = streets.indexOf(currentStreet);
+    if (currentIndex < streets.length - 1) {
+      const next = streets[currentIndex + 1];
+      return next === 'flop' ? 'Flop' : next === 'turn' ? 'Turn' : 'River';
+    }
+    return null;
+  }, [currentStreet]);
 
   // RAISE回数からラベルを決定
   const getRaiseLabel = (raiseCount: number): string => {
@@ -506,8 +597,21 @@ export default function ActionInput({
         </div>
       )}
 
+      {/* ストリート完了 → 次のストリートへ */}
+      {isStreetComplete && nextStreetName && onNextStreet && (
+        <div className="bg-green-900/50 rounded-lg p-4 text-center animate-fade-in">
+          <div className="text-green-300 text-sm mb-2">アクション完了</div>
+          <button
+            onClick={onNextStreet}
+            className="px-6 py-3 bg-green-600 hover:bg-green-500 rounded-lg font-bold text-white btn-tap"
+          >
+            {nextStreetName} へ進む →
+          </button>
+        </div>
+      )}
+
       {/* ポジション選択 */}
-      {!selectedPosition && availablePositions.length > 0 && (
+      {!selectedPosition && availablePositions.length > 0 && !isStreetComplete && (
         <div>
           <div className="text-sm text-gray-400 mb-2">ポジションを選択</div>
           <div className="flex flex-wrap gap-2">

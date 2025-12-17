@@ -508,6 +508,13 @@ export default function HandEditor() {
               onAddAction={handleAddAction}
               onRemoveAction={handleRemoveAction}
               currentStreet={currentStreet}
+              onNextStreet={() => {
+                const streets: Street[] = ['preflop', 'flop', 'turn', 'river'];
+                const currentIndex = streets.indexOf(currentStreet);
+                if (currentIndex < streets.length - 1) {
+                  setCurrentStreet(streets[currentIndex + 1]);
+                }
+              }}
             />
           </section>
 
