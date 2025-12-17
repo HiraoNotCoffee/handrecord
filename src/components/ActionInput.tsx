@@ -277,68 +277,50 @@ export default function ActionInput({
     // 現在のストリートでのレイズ/ベット
     const streetRaises = currentStreetActions.filter((a) => a.type === 'RAISE');
 
+    // 最後のアクションを取得
+    const lastAction = currentStreetActions.reduce((latest, current) =>
+      current.order > latest.order ? current : latest
+    );
+
+    // 最後のアクションがレイズなら未完了
+    if (lastAction.type === 'RAISE' && lastAction.sizeBb !== -1) {
+      return false;
+    }
+
     if (isPreflop) {
-      // プリフロップ: レイズがある場合
       if (streetRaises.length > 0) {
-        const lastRaise = streetRaises.reduce((latest, current) =>
-          current.order > latest.order ? current : latest
-        );
-        const lastRaiseOrder = lastRaise.order;
-        const lastRaiserPos = lastRaise.position;
-        const lastRaiserIndex = preflopOrder.indexOf(lastRaiserPos);
+        // 最後のアクションがCALLの場合
+        if (lastAction.type === 'CALL') {
+          if (streetRaises.length === 1) {
+            // オープンのみ: BBがコールしたら完了
+            if (lastAction.position === 'BB') {
+              return true;
+            }
+          } else {
+            // 3bet以上: 前のレイザーがコールしたら完了
+            // 例: UTG open → CO 3bet → UTG call → 完了
+            // 例: UTG open → CO 3bet → UTG 4bet → CO call → 完了
+            const sortedRaises = [...streetRaises].sort((a, b) => a.order - b.order);
+            const lastRaiserPos = sortedRaises[sortedRaises.length - 1].position;
+            const secondLastRaiserPos = sortedRaises[sortedRaises.length - 2].position;
 
-        // 最後のアクションを取得
-        const lastAction = currentStreetActions.reduce((latest, current) =>
-          current.order > latest.order ? current : latest
-        );
-
-        // 最後のアクションがレイズなら未完了（他のプレイヤーが反応待ち）
-        if (lastAction.type === 'RAISE' && lastAction.sizeBb !== -1) {
-          // ただし、全員がfoldしてレイザーだけ残った場合は完了
-          const remainingPlayers = preflopOrder.filter(
-            (p) => !allFoldedPositions.includes(p) && !currentStreetActions.some(a => a.position === p && a.type === 'FOLD')
-          );
-          if (remainingPlayers.length === 1 && remainingPlayers[0] === lastRaiserPos) {
-            return true;
-          }
-          return false;
-        }
-
-        // 最後のアクションがCALL/FOLDの場合
-        const lastActorPos = lastAction.position;
-
-        // レイザー以降のポジションを取得（レイザー自身を除く）
-        const positionsAfterRaiser: Position[] = [];
-        for (let i = lastRaiserIndex + 1; i < preflopOrder.length; i++) {
-          positionsAfterRaiser.push(preflopOrder[i]);
-        }
-        // レイザーより前のポジション（一周して戻ってくる分、ただしプリフロはSB/BBまで）
-        for (let i = 0; i < lastRaiserIndex; i++) {
-          // 暗黙的foldされていないポジションのみ
-          if (!implicitlyFoldedPositions.includes(preflopOrder[i])) {
-            positionsAfterRaiser.push(preflopOrder[i]);
+            // 前のレイザー（re-raiseされた人）がコールしたら完了
+            if (lastAction.position === secondLastRaiserPos) {
+              return true;
+            }
           }
         }
 
-        // 最後のアクターがレイザー以降の最後のポジションかどうか
-        // または全員がfold/callしたかどうか
-        const actionsAfterLastRaise = currentStreetActions.filter((a) => a.order > lastRaiseOrder);
-        const positionsActedAfterRaise = new Set(actionsAfterLastRaise.map((a) => a.position));
-
-        // アクションが必要なポジション（fold済みでない、かつレイザーでない）
-        const positionsNeedingAction = positionsAfterRaiser.filter(
-          (p) => !allFoldedPositions.includes(p) && !explicitlyFoldedPositions.includes(p)
+        // FOLDで1人だけ残ったら完了
+        const foldedInStreet = currentStreetActions
+          .filter((a) => a.type === 'FOLD')
+          .map((a) => a.position);
+        const activePlayers = preflopOrder.filter(
+          (p) => !allFoldedPositions.includes(p) && !foldedInStreet.includes(p)
         );
-
-        // 最後にアクションしたのがBBで、CALLまたはFOLDなら完了
-        // （BBが最後にアクションするポジションだから）
-        if (lastActorPos === 'BB' && (lastAction.type === 'CALL' || lastAction.type === 'FOLD')) {
+        if (activePlayers.length === 1) {
           return true;
         }
-
-        // それ以外の場合、全員がアクションしたかチェック
-        const allNeededActed = positionsNeedingAction.every((p) => positionsActedAfterRaise.has(p));
-        return allNeededActed && lastAction.type !== 'RAISE';
       }
     } else {
       // ポストフロップ
@@ -527,6 +509,17 @@ export default function ActionInput({
     resetSelection();
   }, [currentStreet]);
 
+  // ストリート完了時に自動で次のストリートへ
+  useEffect(() => {
+    if (isStreetComplete && nextStreetName && onNextStreet) {
+      // 少し遅延を入れて視覚的にアクション完了が分かるようにする
+      const timer = setTimeout(() => {
+        onNextStreet();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isStreetComplete, nextStreetName, onNextStreet]);
+
   const streetActions = actions.filter((a) => a.street === currentStreet);
 
   const getActionDisplayLabel = (action: Action): string => {
@@ -674,16 +667,10 @@ export default function ActionInput({
         </div>
       )}
 
-      {/* ストリート完了 → 次のストリートへ */}
-      {isStreetComplete && nextStreetName && onNextStreet && (
-        <div className="bg-green-900/50 rounded-lg p-4 text-center animate-fade-in">
-          <div className="text-green-300 text-sm mb-2">アクション完了</div>
-          <button
-            onClick={onNextStreet}
-            className="px-6 py-3 bg-green-600 hover:bg-green-500 rounded-lg font-bold text-white btn-tap"
-          >
-            {nextStreetName} へ進む →
-          </button>
+      {/* ストリート完了表示（自動で次へ進む） */}
+      {isStreetComplete && nextStreetName && (
+        <div className="bg-green-900/50 rounded-lg p-3 text-center animate-fade-in">
+          <div className="text-green-300 text-sm">{nextStreetName} へ移動中...</div>
         </div>
       )}
 
