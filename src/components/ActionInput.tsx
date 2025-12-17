@@ -301,7 +301,6 @@ export default function ActionInput({
             // 例: UTG open → CO 3bet → UTG call → 完了
             // 例: UTG open → CO 3bet → UTG 4bet → CO call → 完了
             const sortedRaises = [...streetRaises].sort((a, b) => a.order - b.order);
-            const lastRaiserPos = sortedRaises[sortedRaises.length - 1].position;
             const secondLastRaiserPos = sortedRaises[sortedRaises.length - 2].position;
 
             // 前のレイザー（re-raiseされた人）がコールしたら完了
