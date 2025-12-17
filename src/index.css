@@ -1,0 +1,178 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   NLH Hand Recorder - カスタムスタイル
+   ============================================ */
+
+/* ベース設定 */
+html, body, #root {
+  height: 100%;
+  overscroll-behavior: none;
+}
+
+body {
+  @apply bg-gray-900 text-gray-100;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* カード表示 */
+.card-spade {
+  @apply text-gray-900;
+}
+.card-heart {
+  @apply text-red-500;
+}
+.card-diamond {
+  @apply text-blue-500;
+}
+.card-club {
+  @apply text-green-700;
+}
+
+/* 裏カード */
+.card-back {
+  @apply bg-gradient-to-br from-blue-800 to-blue-900 text-gray-400;
+}
+
+/* ボタンタップ効果 */
+.btn-tap {
+  @apply active:scale-95 transition-transform duration-75;
+}
+
+/* スクロール領域（下部固定パッド対応） */
+.scroll-area {
+  @apply overflow-y-auto pb-40;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 下部固定パッド */
+.bottom-pad {
+  @apply fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 safe-area-inset-bottom;
+}
+
+/* セーフエリア（ノッチ対応） */
+.safe-area-inset-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+/* アニメーション */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* モーダル背景 */
+.modal-overlay {
+  @apply fixed inset-0 bg-black/50 z-50 flex items-end justify-center;
+}
+
+.modal-content {
+  @apply bg-gray-800 rounded-t-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto animate-fade-in;
+}
+
+/* チップ（タグ表示） */
+.chip {
+  @apply inline-flex items-center px-2 py-1 rounded-full text-xs font-medium;
+}
+
+/* カード入力パッドのボタン */
+.rank-btn {
+  @apply w-10 h-10 rounded-lg font-bold text-lg flex items-center justify-center
+         bg-gray-700 text-white hover:bg-gray-600 btn-tap
+         disabled:opacity-30 disabled:cursor-not-allowed;
+}
+
+.suit-btn {
+  @apply w-14 h-14 rounded-xl text-2xl font-bold flex items-center justify-center
+         border-2 btn-tap
+         disabled:opacity-30 disabled:cursor-not-allowed;
+}
+
+.suit-btn-s {
+  @apply bg-gray-100 text-gray-900 border-gray-300;
+}
+.suit-btn-h {
+  @apply bg-red-50 text-red-500 border-red-200;
+}
+.suit-btn-d {
+  @apply bg-blue-50 text-blue-500 border-blue-200;
+}
+.suit-btn-c {
+  @apply bg-green-50 text-green-700 border-green-200;
+}
+
+/* アクションボタン */
+.action-btn {
+  @apply px-4 py-3 rounded-xl font-medium text-sm
+         bg-gray-700 text-white hover:bg-gray-600 btn-tap;
+}
+
+.action-btn-primary {
+  @apply bg-blue-600 hover:bg-blue-500;
+}
+
+.action-btn-danger {
+  @apply bg-red-600 hover:bg-red-500;
+}
+
+.action-btn-success {
+  @apply bg-green-600 hover:bg-green-500;
+}
+
+/* ポジションチップ */
+.position-chip {
+  @apply px-3 py-2 rounded-lg text-sm font-medium cursor-pointer
+         bg-gray-700 text-gray-300 hover:bg-gray-600 btn-tap;
+}
+
+.position-chip-active {
+  @apply bg-blue-600 text-white;
+}
+
+.position-chip-hero {
+  @apply bg-yellow-500 text-gray-900;
+}
+
+/* 入力フィールド */
+.input-field {
+  @apply w-full px-4 py-3 rounded-xl bg-gray-700 text-white
+         border border-gray-600 focus:border-blue-500 focus:outline-none;
+}
+
+/* リストアイテム */
+.list-item {
+  @apply flex items-center gap-4 p-4 bg-gray-800 rounded-xl
+         hover:bg-gray-700 btn-tap cursor-pointer;
+}
+
+/* プレイヤータグ */
+.player-tag {
+  @apply chip bg-gray-600 text-gray-200;
+}
+
+.player-tag-reg {
+  @apply bg-blue-900 text-blue-200;
+}
+
+.player-tag-lag {
+  @apply bg-red-900 text-red-200;
+}
+
+.player-tag-tag {
+  @apply bg-green-900 text-green-200;
+}
+
+.player-tag-nit {
+  @apply bg-yellow-900 text-yellow-200;
+}
+
+.player-tag-calling {
+  @apply bg-purple-900 text-purple-200;
+}
