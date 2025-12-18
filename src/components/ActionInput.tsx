@@ -66,6 +66,7 @@ export default function ActionInput({
   const [selectedType, setSelectedType] = useState<ActionType | null>(null);
   const [showNumpad, setShowNumpad] = useState(false);
   const [customSize, setCustomSize] = useState('');
+  const [justAddedAction, setJustAddedAction] = useState(false);
 
   const isPreflop = currentStreet === 'preflop';
   const bbSize = getBBSize(blind);
@@ -90,8 +91,21 @@ export default function ActionInput({
     // 最後のレイズを探す
     const raises = preflopActions.filter((a) => a.type === 'RAISE');
     if (raises.length === 0) {
-      // レイズがない場合は全員（リンプポット）
-      return postflopOrder;
+      // リンプポット: コールしたプレイヤー + チェックしたBB
+      const inHand: Position[] = [];
+      preflopActions.forEach((a) => {
+        if (a.type === 'CALL' || a.type === 'CHECK') {
+          if (!inHand.includes(a.position)) {
+            inHand.push(a.position);
+          }
+        }
+      });
+      // BBは強制参加（チェックまたは未アクションでも）
+      if (!inHand.includes('BB')) {
+        inHand.push('BB');
+      }
+      // ポストフロップのアクション順でソート
+      return postflopOrder.filter((pos) => inHand.includes(pos));
     }
 
     const lastRaise = raises.reduce((latest, current) =>
@@ -161,12 +175,118 @@ export default function ActionInput({
   // 現在のストリートでアクション可能なポジション
   const availablePositions = useMemo(() => {
     if (isPreflop) {
-      return preflopOrder.filter((pos) => !allFoldedPositions.includes(pos));
+      const streetRaises = preflopActions.filter((a) => a.type === 'RAISE');
+      if (streetRaises.length === 0) {
+        // リンプポット（レイズなし）
+        const actedPositions = preflopActions.map((a) => a.position);
+        // まだアクションしていないポジションを返す
+        const notActed = preflopOrder.filter((pos) => !actedPositions.includes(pos));
+        if (notActed.length > 0) {
+          return notActed;
+        }
+        // 全員アクション済み（コール）→ BBのみチェック可能
+        return ['BB'] as Position[];
+      } else {
+        // レイズ後: ポットに参加しているプレイヤーのみ
+        const playersInPot = preflopActions
+          .filter((a) => a.type === 'RAISE' || a.type === 'CALL')
+          .map((a) => a.position);
+        // BBは強制参加
+        if (!playersInPot.includes('BB')) {
+          playersInPot.push('BB');
+        }
+        // アクション順にソート
+        return preflopOrder.filter((pos) => playersInPot.includes(pos));
+      }
     } else {
       // フロップ以降: ハンドに残ったプレイヤーのみ
       return playersInHand.filter((pos) => !explicitlyFoldedPositions.includes(pos));
     }
-  }, [isPreflop, preflopOrder, postflopOrder, allFoldedPositions, playersInHand, explicitlyFoldedPositions]);
+  }, [isPreflop, preflopOrder, preflopActions, playersInHand, explicitlyFoldedPositions]);
+
+  // 次にアクションすべきポジション
+  const nextToAct = useMemo((): Position | null => {
+    const streetActs = actions.filter((a) => a.street === currentStreet);
+    const order = isPreflop ? preflopOrder : postflopOrder;
+
+    // 現在のストリートでレイズがあるか
+    const streetRaises = streetActs.filter((a) => a.type === 'RAISE');
+
+    if (isPreflop) {
+      if (streetRaises.length === 0) {
+        // オープンレイズ前: アクション順で最初のプレイヤー
+        const actedPositions = streetActs.map((a) => a.position);
+        for (const pos of order) {
+          if (!actedPositions.includes(pos)) {
+            return pos;
+          }
+        }
+      } else {
+        // レイズあり
+        const lastRaise = streetRaises.reduce((latest, current) =>
+          current.order > latest.order ? current : latest
+        );
+        const lastRaiseOrder = lastRaise.order;
+
+        // 最後のレイズ以降にアクションしたポジション
+        const actionsAfterRaise = streetActs.filter((a) => a.order > lastRaiseOrder);
+        const actedAfterRaise = actionsAfterRaise.map((a) => a.position);
+
+        // ポットに参加しているプレイヤー（レイズまたはコールした人）
+        const playersInPot = streetActs
+          .filter((a) => a.type === 'RAISE' || a.type === 'CALL')
+          .map((a) => a.position);
+        // BBは強制参加
+        if (!playersInPot.includes('BB')) {
+          playersInPot.push('BB');
+        }
+
+        // まだアクションしていないポットに参加しているプレイヤーを探す
+        // アクション順に沿って、最後のレイザー以降で
+        const lastRaiserIndex = order.indexOf(lastRaise.position);
+        for (let i = 1; i < order.length; i++) {
+          const idx = (lastRaiserIndex + i) % order.length;
+          const pos = order[idx];
+          if (playersInPot.includes(pos) && pos !== lastRaise.position && !actedAfterRaise.includes(pos)) {
+            return pos;
+          }
+        }
+      }
+    } else {
+      // ポストフロップ
+      const active = availablePositions;
+      if (active.length === 0) return null;
+
+      if (streetRaises.length === 0) {
+        // ベットなし: アクション順で最初のまだアクションしていないプレイヤー
+        const actedPositions = streetActs.map((a) => a.position);
+        for (const pos of order) {
+          if (active.includes(pos) && !actedPositions.includes(pos)) {
+            return pos;
+          }
+        }
+      } else {
+        // ベットあり: 最後のベッター以降で、まだアクションしていないプレイヤー
+        const lastRaise = streetRaises.reduce((latest, current) =>
+          current.order > latest.order ? current : latest
+        );
+        const lastRaiserIndex = order.indexOf(lastRaise.position);
+
+        const actionsAfterRaise = streetActs.filter((a) => a.order > lastRaise.order);
+        const actedAfterRaise = actionsAfterRaise.map((a) => a.position);
+
+        for (let i = 1; i < order.length; i++) {
+          const idx = (lastRaiserIndex + i) % order.length;
+          const pos = order[idx];
+          if (active.includes(pos) && pos !== lastRaise.position && !actedAfterRaise.includes(pos)) {
+            return pos;
+          }
+        }
+      }
+    }
+
+    return null;
+  }, [actions, currentStreet, isPreflop, preflopOrder, postflopOrder, availablePositions]);
 
   // ポットサイズ計算
   const potSize = useMemo(() => {
@@ -289,35 +409,30 @@ export default function ActionInput({
 
     if (isPreflop) {
       if (streetRaises.length > 0) {
-        // 最後のアクションがCALLの場合
-        if (lastAction.type === 'CALL') {
-          if (streetRaises.length === 1) {
-            // オープンのみ: BBがコールしたら完了
-            if (lastAction.position === 'BB') {
-              return true;
-            }
-          } else {
-            // 3bet以上: 前のレイザーがコールしたら完了
-            // 例: UTG open → CO 3bet → UTG call → 完了
-            // 例: UTG open → CO 3bet → UTG 4bet → CO call → 完了
-            const sortedRaises = [...streetRaises].sort((a, b) => a.order - b.order);
-            const secondLastRaiserPos = sortedRaises[sortedRaises.length - 2].position;
-
-            // 前のレイザー（re-raiseされた人）がコールしたら完了
-            if (lastAction.position === secondLastRaiserPos) {
-              return true;
-            }
-          }
-        }
-
-        // FOLDで1人だけ残ったら完了
-        const foldedInStreet = currentStreetActions
-          .filter((a) => a.type === 'FOLD')
-          .map((a) => a.position);
-        const activePlayers = preflopOrder.filter(
-          (p) => !allFoldedPositions.includes(p) && !foldedInStreet.includes(p)
+        // レイズあり: 最後のレイズに全員が対応したら完了
+        const lastRaise = streetRaises.reduce((latest, current) =>
+          current.order > latest.order ? current : latest
         );
-        if (activePlayers.length === 1) {
+        const lastRaiserPos = lastRaise.position;
+        const lastRaiseOrder = lastRaise.order;
+
+        // 最後のレイズ以降にアクションしたプレイヤー
+        const actionsAfterLastRaise = currentStreetActions.filter((a) => a.order > lastRaiseOrder);
+        const playersActedAfterRaise = actionsAfterLastRaise.map((a) => a.position);
+
+        // アクティブなプレイヤー（ポットに参加している人、レイザー以外）
+        const activePlayers = availablePositions.filter((p) => p !== lastRaiserPos);
+
+        // 全員がアクションしたか確認
+        const allOthersActed = activePlayers.every((p) => playersActedAfterRaise.includes(p));
+
+        // 最後のアクションがレイズでない（CALLまたはall-in）
+        const lastActionIsNotRaise = lastAction.type !== 'RAISE' || lastAction.sizeBb === -1;
+
+        return allOthersActed && lastActionIsNotRaise;
+      } else {
+        // リンプポット（レイズなし）: BBがチェックしたら完了
+        if (lastAction.type === 'CHECK' && lastAction.position === 'BB') {
           return true;
         }
       }
@@ -415,6 +530,7 @@ export default function ActionInput({
         type,
       };
       onAddAction(action);
+      setJustAddedAction(true);
       resetSelection();
       return;
     }
@@ -429,6 +545,7 @@ export default function ActionInput({
         sizeBb: allInSize !== undefined ? allInSize : -1,
       };
       onAddAction(action);
+      setJustAddedAction(true);
       resetSelection();
       return;
     }
@@ -460,6 +577,7 @@ export default function ActionInput({
       sizeBb: calculatedBb,
     };
     onAddAction(action);
+    setJustAddedAction(true);
     resetSelection();
   };
 
@@ -476,6 +594,7 @@ export default function ActionInput({
       sizeBb,
     };
     onAddAction(action);
+    setJustAddedAction(true);
     resetSelection();
   };
 
@@ -506,18 +625,20 @@ export default function ActionInput({
 
   useEffect(() => {
     resetSelection();
+    setJustAddedAction(false); // ストリート変更時にリセット
   }, [currentStreet]);
 
-  // ストリート完了時に自動で次のストリートへ
+  // ストリート完了時に自動で次のストリートへ（アクション追加時のみ）
   useEffect(() => {
-    if (isStreetComplete && nextStreetName && onNextStreet) {
+    if (justAddedAction && isStreetComplete && nextStreetName && onNextStreet) {
       // 少し遅延を入れて視覚的にアクション完了が分かるようにする
       const timer = setTimeout(() => {
         onNextStreet();
+        setJustAddedAction(false);
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [isStreetComplete, nextStreetName, onNextStreet]);
+  }, [justAddedAction, isStreetComplete, nextStreetName, onNextStreet]);
 
   const streetActions = actions.filter((a) => a.street === currentStreet);
 
@@ -651,13 +772,6 @@ export default function ActionInput({
         </div>
       )}
 
-      {/* 暗黙的fold表示（プリフロのみ） */}
-      {implicitlyFoldedPositions.length > 0 && isPreflop && (
-        <div className="text-xs text-gray-500">
-          自動Fold: {implicitlyFoldedPositions.join(', ')}
-        </div>
-      )}
-
       {/* ハンドに残ったプレイヤー表示（フロップ以降） */}
       {!isPreflop && playersInHand.length > 0 && streetActions.length === 0 && (
         <div className="text-xs text-gray-500">
@@ -676,13 +790,24 @@ export default function ActionInput({
       {/* ポジション選択 */}
       {!selectedPosition && availablePositions.length > 0 && !isStreetComplete && (
         <div>
-          <div className="text-sm text-gray-400 mb-2">ポジションを選択</div>
+          <div className="text-sm text-gray-400 mb-2">
+            ポジションを選択
+            {nextToAct && (
+              <span className="ml-2 text-yellow-400">
+                (次: {nextToAct})
+              </span>
+            )}
+          </div>
           <div className="flex flex-wrap gap-2">
             {availablePositions.map((pos) => (
               <button
                 key={pos}
                 onClick={() => handlePositionSelect(pos)}
-                className="position-chip"
+                className={`position-chip ${
+                  pos === nextToAct
+                    ? 'ring-2 ring-yellow-400 bg-yellow-900/30'
+                    : ''
+                }`}
               >
                 {pos}
               </button>
@@ -704,12 +829,15 @@ export default function ActionInput({
             </button>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => handleTypeSelect('FOLD')}
-              className="action-btn action-btn-danger"
-            >
-              Fold
-            </button>
+            {/* プリフロップではFOLDを記録しない（暗黙的fold） */}
+            {!isPreflop && (
+              <button
+                onClick={() => handleTypeSelect('FOLD')}
+                className="action-btn action-btn-danger"
+              >
+                Fold
+              </button>
+            )}
             <button
               onClick={() => handleTypeSelect('CHECK')}
               className="action-btn"
